@@ -14,9 +14,10 @@
 ################################################################################
 
 library(tidyverse)
-library(ggplot2)
+library(anytime)
 
 rm (list = ls())
+
 
 lista <- list(
   "MSCI USA" = "https://raw.githubusercontent.com/paolocole/Stock-Indexes-Historical-Data/main/NET/EUR/LARGE_AND_MID_CAP/COUNTRIES/MSCI%20USA.csv",
@@ -30,10 +31,37 @@ dati <- list()
 
 for (nome in names(lista)) {
   dato <- read.csv(lista[[nome]])
-  cat("\n", nome, "\n")
-  print(summary(dato[,2] / lag(dato[,2], 12) - 1))
+  dato$Rendimento <- (dato[,2] / lag(dato[,2], 1)-1)
+  print(summary(dato$Rendimento))
   dati[[nome]] <- dato
 }
+
+#-------------------------------------------------------------------------------
+# CORRELATION MATRIX 
+
+correlazione <- matrix (nrow = 5, ncol = 5, dimnames = list (names(lista),names(lista))) 
+
+for (nome_1 in names(lista)) {
+  for (nome_2 in names(lista)) {
+    
+    data_inizio <- max (anydate(dati[[nome_1]]$Date[1]), anydate(dati[[nome_2]]$Date[1]))
+    data_fine <- min (anydate(dati[[nome_1]]$Date[nrow(dati[[nome_1]])]), anydate(dati[[nome_2]]$Date[nrow(dati[[nome_2]])]))
+    
+    indice_data_inizio_ar1 <-  which (anydate(dati[[nome_1]]$Date) == data_inizio) + 1
+    indice_data_fine_ar1 <-  which (anydate(dati[[nome_1]]$Date) == data_fine)
+    
+    indice_data_inizio_ar2 <-  which (anydate(dati[[nome_2]]$Date) == data_inizio)+1
+    indice_data_fine_ar2 <-  which (anydate(dati[[nome_2]]$Date) == data_fine)
+    
+    correlazione[nome_1,nome_2] <- round (cor (dati[[nome_1]]$Rendimento[indice_data_inizio_ar1:indice_data_fine_ar1],
+                                        dati[[nome_2]]$Rendimento[indice_data_inizio_ar2:indice_data_fine_ar2]), 3)
+  
+  }  
+}
+
+
+correlazione
+
 
 risparmio <- 1000
 aumento_risparmio <- 0.03
