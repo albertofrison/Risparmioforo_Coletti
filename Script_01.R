@@ -12,7 +12,6 @@
 # LOAD LIBRARIES AND CLEANING ENVIRONMENT
 #
 ################################################################################
-
 library(tidyverse)
 library(anytime)
 
@@ -36,9 +35,9 @@ for (nome in names(lista)) {
   dati[[nome]] <- dato
 }
 
+
 #-------------------------------------------------------------------------------
 # CORRELATION MATRIX 
-
 correlazione <- matrix (nrow = 5, ncol = 5, dimnames = list (names(lista),names(lista))) 
 
 for (nome_1 in names(lista)) {
@@ -58,54 +57,129 @@ for (nome_1 in names(lista)) {
   
   }  
 }
-
-
 correlazione
 
-
-risparmio <- 1000
-aumento_risparmio <- 0.03
+#-------------------------------------------------------------------------------
+# some plots
 indice <- "MSCI World"
-aliquota <- 0.26
-bollo <- 0.002
-anni <- c(10, 20, 30, 40, 50)
 
-rendimenti_mensili <- tail(dati[[indice]][,2] / lag(dati[[indice]][,2]) - 1, -1)
-aumento_risparmio_mensile <- (1 + aumento_risparmio)^(1/12) - 1
-mese <- 0
-quanti_mesi <- anni[length(anni)] * 12
-calcolo <- matrix(0, nrow = quanti_mesi, ncol = length(rendimenti_mensili))
-calcolo[1,] <- 0
-versamenti <- rep(0, quanti_mesi)
-versamenti[1] <- risparmio
-calcolo[1,] <- versamenti[1]
+as.data.frame (dati[indice]) %>%
+  ggplot (aes (x = anydate(MSCI.World.Date), y = MSCI.World.WORLD))+
+  geom_line()
 
-for (mese in 2:quanti_mesi) {
-  versamenti[mese] <- versamenti[mese - 1] * (1 + aumento_risparmio_mensile)
+indice <- "MSCI Emerging Asia"
+
+as.data.frame (dati[indice]) %>%
+  ggplot (aes (x = anydate(MSCI.Emerging.Asia.Date), y = MSCI.Emerging.Asia.EM.ASIA))+
+  geom_line()
+
+
+
+#-------------------------------------------------------------------------------
+# let's get some statistical information from the data
+indice <- "MSCI World"
+
+mean <- mean(dati[[indice]]$Rendimento, na.rm = TRUE)
+std_dev <- sd (dati[[indice]]$Rendimento, na.rm = TRUE)
+hist(dati[[indice]]$Rendimento)
+# looks normal? not really
+
+rnorm(1 , mean, std_dev)
+
+
+
+#-------------------------------------------------------------------------------
+# Calcola i Versamenti cumulati
+sim_versamenti <- function() {
+  versamenti <- 0
+  
+  for (i in 1:mesi) {
+    risparmio <- risparmio * ifelse (i %% 12 == 0, 1 + aumento_risparmio, 1)
+    versamenti <- versamenti + risparmio
+    }
+  
+  return (versamenti)
 }
 
-for (mese in 2:quanti_mesi) {
-  versamenti[mese] <- versamenti[mese] - (calcolo[mese - 1,] * bollo * (mese %% 12 == 0))
-  for (simulazione in 1:length(rendimenti_mensili)) {
-    quale_simulazione <- ((simulazione + mese - 1) %% length(rendimenti_mensili)) + 1
-    calcolo[mese, simulazione] <- versamenti[mese] + calcolo[mese - 1, simulazione] * (1 + rendimenti_mensili[quale_simulazione])
-  }
+#-------------------------------------------------------------------------------
+# Calcola valore a x anni pre-tax
+sim_valore <- function() {
+
+  valore <- 0
+    
+  for (i in 1:mesi) {
+    risparmio <- risparmio * ifelse (i %% 12 == 0, 1 + aumento_risparmio, 1)
+    valore <- valore * (1 + rnorm (1, mean, std_dev)) + risparmio
+    valore <- valore * ifelse (i %% 12 == 0, 1 - 0.002, 1)  # imposta di bollo pagata a dicembre di ogni anno
+    }
+  return (valore)
 }
 
-for (anno in anni) {
-  cat(anno, "anni: ")
-  c <- calcolo[anno * 12, ]
-  v <- sum(versamenti[1:(anno * 12)])
-  tassa <- (c - v) * aliquota
-  netto <- c - tassa
-  cat("versato", round(v / 1000), " - ", "min", round(min(netto) / 1000), " media", round(mean(netto) / 1000), " max", round(max(netto) / 1000), "\n")
-  hist(netto / 1000, breaks = length(netto) / 15, main = paste(anno, "anni"), xlab = "Netto (in migliaia di euro)", col = "lightblue", border = "black")
-  abline(v = v / 1000, col = "red", lty = 2, label = "versato")
-  axis(1, at = seq(0, max(netto / 1000), by = 500), las = 2)
-  grid()
-  box()
-  print(netto)
-}
+
+#-------------------------------------------------------------------------------
+indice <- "MSCI World"
+anni <- 30
+mesi <- anni * 12
+risparmio <- 1000 # risparmio mensile
+aumento_risparmio <- 0.00 # 3% annuale
+num_simulazioni <- 10000 # deve andare a 10.000
+
+simulazioni <- array(num_simulazioni)
+simulazioni  <- replicate(num_simulazioni, sim_valore ())
+
+versamenti_effettuati <- sim_versamenti()
+
+ggplot (data = as.data.frame(simulazioni), aes (x = simulazioni)) +
+  geom_histogram(binwidth = 5000, color = "red", fill = "white", ) +
+  geom_vline(xintercept = versamenti_effettuati, color = "blue")
+  
+
+
+#-------------------------------------------------------------------------------
+
+# risparmio <- 1000
+# aumento_risparmio <- 0.03 
+# 
+# aliquota <- 0.26
+# bollo <- 0.002
+# anni <- c(10, 20, 30, 40, 50)
+# 
+# rendimenti_mensili <- tail(dati[[indice]][,2] / lag(dati[[indice]][,2]) - 1, -1)
+# aumento_risparmio_mensile <- (1 + aumento_risparmio)^(1/12) - 1
+# mese <- 0
+# quanti_mesi <- anni[length(anni)] * 12
+# calcolo <- matrix(0, nrow = quanti_mesi, ncol = length(rendimenti_mensili))
+# calcolo[1,] <- 0
+# versamenti <- rep(0, quanti_mesi)
+# versamenti[1] <- risparmio
+# calcolo[1,] <- versamenti[1]
+# 
+# for (mese in 2:quanti_mesi) {
+#   versamenti[mese] <- versamenti[mese - 1] * (1 + aumento_risparmio_mensile)
+# }
+# 
+# for (mese in 2:quanti_mesi) {
+#   versamenti[mese] <- versamenti[mese] - (calcolo[mese - 1,] * bollo * (mese %% 12 == 0))
+#   for (simulazione in 1:length(rendimenti_mensili)) {
+#     quale_simulazione <- ((simulazione + mese - 1) %% length(rendimenti_mensili)) + 1
+#     calcolo[mese, simulazione] <- versamenti[mese] + calcolo[mese - 1, simulazione] * (1 + rendimenti_mensili[quale_simulazione])
+#   }
+# }
+# 
+# for (anno in anni) {
+#   cat(anno, "anni: ")
+#   c <- calcolo[anno * 12, ]
+#   v <- sum(versamenti[1:(anno * 12)])
+#   tassa <- (c - v) * aliquota
+#   netto <- c - tassa
+#   cat("versato", round(v / 1000), " - ", "min", round(min(netto) / 1000), " media", round(mean(netto) / 1000), " max", round(max(netto) / 1000), "\n")
+#   hist(netto / 1000, breaks = length(netto) / 15, main = paste(anno, "anni"), xlab = "Netto (in migliaia di euro)", col = "lightblue", border = "black")
+#   abline(v = v / 1000, col = "red", lty = 2, label = "versato")
+#   axis(1, at = seq(0, max(netto / 1000), by = 500), las = 2)
+#   grid()
+#   box()
+#   print(netto)
+# }
 
 
 
