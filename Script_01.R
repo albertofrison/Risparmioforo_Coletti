@@ -73,29 +73,38 @@ as.data.frame (dati[indice]) %>%
   ggplot (aes (x = anydate(MSCI.Emerging.Asia.Date), y = MSCI.Emerging.Asia.EM.ASIA))+
   geom_line()
 
-
-
 #-------------------------------------------------------------------------------
 # let's get some statistical information from the data
 indice <- "MSCI World"
 
 mean <- mean(dati[[indice]]$Rendimento, na.rm = TRUE)
 std_dev <- sd (dati[[indice]]$Rendimento, na.rm = TRUE)
-hist(dati[[indice]]$Rendimento)
+
+?sd
+
 # looks normal? not really
+hist(dati[[indice]]$Rendimento, 50)
+hist (rnorm (10000, mean, std_dev), 50)
 
-rnorm(1 , mean, std_dev)
+?hist
+# THE two distributions do not loook alike to me
 
+# why not use the sample function to extract randomly one monthly yeild from the vector?
+rendimenti <- dati[[indice]]$Rendimento[2:length(dati[[indice]]$Rendimento)]
+
+# looks the same as the original yield array
+hist (sample (rendimenti, 1000000, replace = TRUE))
 
 
 #-------------------------------------------------------------------------------
 # Calcola i Versamenti cumulati
 sim_versamenti <- function() {
   versamenti <- 0
+  aumento_risparmio_mensile <- (1 + aumento_risparmio) ^ (1/12) - 1
   
   for (i in 1:mesi) {
-    risparmio <- risparmio * ifelse (i %% 12 == 0, 1 + aumento_risparmio, 1)
     versamenti <- versamenti + risparmio
+    risparmio <- risparmio * (1 + aumento_risparmio_mensile)
     }
   
   return (versamenti)
@@ -104,39 +113,40 @@ sim_versamenti <- function() {
 #-------------------------------------------------------------------------------
 # Calcola valore a x anni pre-tax
 sim_valore <- function() {
-
   valore <- 0
-    
+  aumento_risparmio_mensile <- (1 + aumento_risparmio) ^ (1/12) - 1
+
   for (i in 1:mesi) {
-    risparmio <- risparmio * ifelse (i %% 12 == 0, 1 + aumento_risparmio, 1)
-    valore <- valore * (1 + rnorm (1, mean, std_dev)) + risparmio
-    valore <- valore * ifelse (i %% 12 == 0, 1 - 0.002, 1)  # imposta di bollo pagata a dicembre di ogni anno
+    # valore <- valore * (1 + rnorm (1, mean, std_dev)) + risparmio * ifelse (i %% 12 == 0, 1 - 0.002, 1)  # imposta di bollo pagata a dicembre di ogni anno
+    valore <- valore * (1 + sample (rendimenti, 1)) + risparmio * ifelse (i %% 12 == 0, 1 - 0.002, 1)  # imposta di bollo pagata a dicembre di ogni anno
+    risparmio <- risparmio * (1 + aumento_risparmio_mensile)
     }
   return (valore)
 }
-
-
 #-------------------------------------------------------------------------------
+# an effective simulation
 indice <- "MSCI World"
-anni <- 30
+anni <- 10
 mesi <- anni * 12
 risparmio <- 1000 # risparmio mensile
-aumento_risparmio <- 0.00 # 3% annuale
-num_simulazioni <- 10000 # deve andare a 10.000
+aumento_risparmio <- 0.03 # 3% annuale - nel calcolo viene mensilizzato
+num_simulazioni <- 10000 # almeno 10.000 simulazioni per avere una minima valenza
 
 simulazioni <- array(num_simulazioni)
 simulazioni  <- replicate(num_simulazioni, sim_valore ())
 
 versamenti_effettuati <- sim_versamenti()
 
+versamenti_effettuati
+summary(simulazioni)
+
 ggplot (data = as.data.frame(simulazioni), aes (x = simulazioni)) +
-  geom_histogram(binwidth = 5000, color = "red", fill = "white", ) +
-  geom_vline(xintercept = versamenti_effettuati, color = "blue")
+  geom_histogram(binwidth = 500, color = "red", fill = "white", ) +
+  geom_vline(xintercept = versamenti_effettuati, color = "blue") +
+  labs (title = "Simulazione Valore Investimento", subtitle = paste ("Investimento di", risparmio, "€ al mese per", anni,"anni sull'indice", indice, "-", num_simulazioni, "simulazioni Monte Carlo"), x = "Valore Nominale Investimento")
   
 
-
 #-------------------------------------------------------------------------------
-
 # risparmio <- 1000
 # aumento_risparmio <- 0.03 
 # 
